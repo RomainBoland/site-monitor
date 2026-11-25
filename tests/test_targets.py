@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from site_monitor import checker
 from site_monitor.main import app
 
 
@@ -8,6 +9,12 @@ from site_monitor.main import app
 def client(tmp_path, monkeypatch, fake_dns):
     # Point the app at a fresh database file for each test.
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "test.db"))
+
+    # These tests are about the API: don't start the background checker.
+    async def no_checker(settings, results):
+        pass
+
+    monkeypatch.setattr(checker, "checker_loop", no_checker)
     # `with` runs the lifespan (startup), which creates the table.
     with TestClient(app) as client:
         yield client

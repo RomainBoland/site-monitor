@@ -5,12 +5,12 @@ description = "Monitors website availability and exposes Prometheus metrics"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.165.0",
+    "httpx2>=2.16.2",
     "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.16.2",
     "pytest>=9.2.0",
     "ruff>=0.17.6",
 ]

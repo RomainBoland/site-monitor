@@ -1,3 +1,6 @@
+import asyncio
+import contextlib
+import logging
 import sqlite3
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
@@ -6,17 +9,35 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl, field_validator
 
-from site_monitor import db
+from site_monitor import checker, db
 from site_monitor.ssrf import UnsafeURLError, check_url_is_public
+
+# Uvicorn only configures its own loggers; without this, our INFO logs are dropped.
+# Logs go to stderr, where Docker collects them (12-factor: logs are a stream).
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
+# httpx2 logs every request at INFO: one line per target per round is too noisy.
+logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Runs once at startup: make sure the table exists before serving requests.
+    # Startup: make sure the table exists before serving requests.
     conn = db.connect(db.get_database_path())
     db.init_db(conn)
     conn.close()
+
+    # Latest check result per target id, filled by the background checker.
+    app.state.results = {}
+    task = asyncio.create_task(
+        checker.checker_loop(checker.load_settings(), app.state.results)
+    )
     yield
+    # Shutdown: stop the checker cleanly.
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 app = FastAPI(title="site-monitor", lifespan=lifespan)
