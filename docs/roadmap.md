@@ -4,7 +4,7 @@ Each step ends with one commit and, when a choice was made, a decision record in
 
 - [x] 1. Project skeleton: git init, .gitignore, Python version, dependency/packaging tool, README skeleton — *decision: pip+venv vs uv vs poetry*
 - [x] 2. Web framework + `/health` endpoint + first test — *decision: FastAPI vs Flask vs Django; test runner*
-- [ ] 3. Lint/format + Makefile — *decision: ruff vs flake8+black*
+- [x] 3. Lint/format + Makefile — *decision: ruff vs flake8+black*
 - [ ] 4. Storage for targets — *decision: SQLite via stdlib vs SQLAlchemy vs PostgreSQL*
 - [ ] 5. Targets endpoints (add/list/delete) with input validation
 - [ ] 6. SSRF protection (refuse localhost/private networks) with dedicated tests; explain why the risk exists
