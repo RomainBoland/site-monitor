@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl, field_validator
 
 from site_monitor import db
+from site_monitor.ssrf import UnsafeURLError, check_url_is_public
 
 
 @asynccontextmanager
@@ -62,8 +63,13 @@ def health() -> dict[str, str]:
 
 @app.post("/targets", status_code=201)
 def create_target(target: TargetIn, conn: Conn) -> TargetOut:
+    url = str(target.url)
     try:
-        row = db.add_target(conn, str(target.url))
+        check_url_is_public(url)
+    except UnsafeURLError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    try:
+        row = db.add_target(conn, url)
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail="Target already exists") from None
     return TargetOut(**row)

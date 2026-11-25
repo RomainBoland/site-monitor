@@ -5,7 +5,7 @@ from site_monitor.main import app
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
+def client(tmp_path, monkeypatch, fake_dns):
     # Point the app at a fresh database file for each test.
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "test.db"))
     # `with` runs the lifespan (startup), which creates the table.
@@ -90,3 +90,30 @@ def test_delete_with_non_integer_id_returns_422(client):
     response = client.delete("/targets/abc")
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1:9090/",
+        "http://localhost/",
+        "http://2130706433/",  # 127.0.0.1 written as a decimal number
+        "http://169.254.169.254/latest/meta-data/",
+        "https://internal.example/",  # hostname resolving to 10.0.0.5
+        "https://mixed.example/",  # one public and one loopback address
+    ],
+)
+def test_non_public_targets_are_rejected(client, url):
+    response = client.post("/targets", json={"url": url})
+
+    assert response.status_code == 422
+    # Check the reason, so the test cannot pass for an unrelated error.
+    assert "non-public address" in response.json()["detail"]
+    assert client.get("/targets").json() == []
+
+
+def test_unresolvable_target_is_rejected(client):
+    response = client.post("/targets", json={"url": "https://nope.example/"})
+
+    assert response.status_code == 422
+    assert "does not resolve" in response.json()["detail"]
