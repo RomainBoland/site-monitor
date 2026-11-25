@@ -2,7 +2,7 @@
 
 Each step ends with one commit and, when a choice was made, a decision record in [decisions/](decisions/).
 
-- [ ] 1. Project skeleton: git init, .gitignore, Python version, dependency/packaging tool, README skeleton — *decision: pip+venv vs uv vs poetry*
+- [x] 1. Project skeleton: git init, .gitignore, Python version, dependency/packaging tool, README skeleton — *decision: pip+venv vs uv vs poetry*
 - [ ] 2. Web framework + `/health` endpoint + first test — *decision: FastAPI vs Flask vs Django; test runner*
 - [ ] 3. Lint/format + Makefile — *decision: ruff vs flake8+black*
 - [ ] 4. Storage for targets — *decision: SQLite via stdlib vs SQLAlchemy vs PostgreSQL*

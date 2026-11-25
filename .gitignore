@@ -1,0 +1,29 @@
+# Virtual environment (recreated with `uv sync`)
+.venv/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local configuration and secrets (.env.example IS committed)
+.env
+.env.*
+!.env.example
+
+# Local data
+*.db
+*.sqlite3
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
