@@ -6,7 +6,7 @@ Each step ends with one commit and, when a choice was made, a decision record in
 - [x] 2. Web framework + `/health` endpoint + first test — *decision: FastAPI vs Flask vs Django; test runner*
 - [x] 3. Lint/format + Makefile — *decision: ruff vs flake8+black*
 - [x] 4. Storage for targets — *decision: SQLite via stdlib vs SQLAlchemy vs PostgreSQL*
-- [ ] 5. Targets endpoints (add/list/delete) with input validation
+- [x] 5. Targets endpoints (add/list/delete) with input validation
 - [ ] 6. SSRF protection (refuse localhost/private networks) with dedicated tests; explain why the risk exists
 - [ ] 7. The checker — *decision: httpx vs requests vs aiohttp; sync vs async; how to schedule periodic checks*
 - [ ] 8. Consecutive-failure logic and state-change detection

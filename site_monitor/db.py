@@ -17,7 +17,9 @@ def get_database_path() -> str:
 
 
 def connect(path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(path)
+    # FastAPI may open, use and close a connection on different threads of its pool.
+    # Safe here because each connection belongs to a single request and is never shared.
+    conn = sqlite3.connect(path, check_same_thread=False)
     # Rows behave like dicts (row["url"]) instead of plain tuples.
     conn.row_factory = sqlite3.Row
     return conn
