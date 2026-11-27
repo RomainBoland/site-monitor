@@ -1,0 +1,29 @@
+services:
+  site-monitor:
+    build: .
+    image: site-monitor:local
+    # 127.0.0.1 only: /metrics and the API have no authentication, so they must
+    # not be reachable from other machines. Prometheus will join the Docker
+    # network later instead of going through a public port.
+    ports:
+      - "127.0.0.1:8000:8000"
+    # Values come from .env if present (see .env.example), else these defaults.
+    environment:
+      CHECK_INTERVAL_SECONDS: ${CHECK_INTERVAL_SECONDS:-30}
+      CHECK_TIMEOUT_SECONDS: ${CHECK_TIMEOUT_SECONDS:-10}
+      CHECK_CONCURRENCY: ${CHECK_CONCURRENCY:-10}
+      FAILURE_THRESHOLD: ${FAILURE_THRESHOLD:-3}
+    # The database lives in a named volume, so it survives container rebuilds.
+    volumes:
+      - site-monitor-data:/data
+    restart: unless-stopped
+    # Hardening: read-only root filesystem (only /data is writable), no Linux
+    # capabilities, and no privilege escalation (e.g. via setuid binaries).
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  site-monitor-data:

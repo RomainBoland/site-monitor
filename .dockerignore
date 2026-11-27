@@ -1,0 +1,12 @@
+# Keep the build context small and never send local secrets or state to the image.
+.git/
+.venv/
+.env
+.env.*
+*.db
+*.sqlite3
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+tests/
+docs/

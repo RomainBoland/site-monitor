@@ -24,6 +24,17 @@ make test      # run the tests
 make run       # start the API on http://127.0.0.1:8000 (docs at /docs)
 ```
 
+## Running with Docker
+
+Requires Docker with the Compose plugin.
+
+```bash
+make up        # build the image and start the container in the background
+make down      # stop it (the database is kept in the site-monitor-data volume)
+```
+
+The API listens on http://127.0.0.1:8000 only (not on other interfaces). Settings are read from `.env` if it exists (see [.env.example](.env.example)). Inside the container, the database is stored at `/data/site-monitor.db`.
+
 ## Architecture
 
 _To be written (step 12)._
