@@ -110,10 +110,28 @@ def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("CHECK_INTERVAL_SECONDS", "5")
     monkeypatch.setenv("CHECK_TIMEOUT_SECONDS", "2.5")
     monkeypatch.setenv("CHECK_CONCURRENCY", "4")
+    monkeypatch.setenv("FAILURE_THRESHOLD", "2")
 
-    settings = checker.load_settings()
+    s = checker.load_settings()
 
-    assert (settings.interval, settings.timeout, settings.concurrency) == (5, 2.5, 4)
+    assert (s.interval, s.timeout, s.concurrency, s.failure_threshold) == (5, 2.5, 4, 2)
+
+
+@pytest.mark.parametrize(
+    "name, value",
+    [
+        ("CHECK_CONCURRENCY", "0"),  # would hang forever on Semaphore(0)
+        ("FAILURE_THRESHOLD", "0"),
+        ("CHECK_INTERVAL_SECONDS", "0"),
+        ("CHECK_TIMEOUT_SECONDS", "-1"),
+        ("CHECK_CONCURRENCY", "abc"),
+    ],
+)
+def test_invalid_settings_fail_fast(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValueError):
+        checker.load_settings()
 
 
 def test_loop_survives_a_failed_round(monkeypatch):
@@ -127,10 +145,12 @@ def test_loop_survives_a_failed_round(monkeypatch):
         return []
 
     monkeypatch.setattr(checker, "_load_targets", flaky_load_targets)
-    settings = checker.CheckerSettings(interval=0.01, timeout=1, concurrency=1)
+    settings = checker.CheckerSettings(
+        interval=0.01, timeout=1, concurrency=1, failure_threshold=1
+    )
 
     async def main():
-        task = asyncio.create_task(checker.checker_loop(settings, {}))
+        task = asyncio.create_task(checker.checker_loop(settings, {}, {}))
         while calls < 3:
             await asyncio.sleep(0.01)
         task.cancel()

@@ -11,7 +11,7 @@ def client(tmp_path, monkeypatch, fake_dns):
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "test.db"))
 
     # These tests are about the API: don't start the background checker.
-    async def no_checker(settings, results):
+    async def no_checker(settings, results, states):
         pass
 
     monkeypatch.setattr(checker, "checker_loop", no_checker)

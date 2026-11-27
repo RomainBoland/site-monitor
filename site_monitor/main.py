@@ -28,10 +28,13 @@ async def lifespan(app: FastAPI):
     db.init_db(conn)
     conn.close()
 
-    # Latest check result per target id, filled by the background checker.
+    # Latest check result and UP/DOWN state per target id, filled by the checker.
     app.state.results = {}
+    app.state.states = {}
     task = asyncio.create_task(
-        checker.checker_loop(checker.load_settings(), app.state.results)
+        checker.checker_loop(
+            checker.load_settings(), app.state.results, app.state.states
+        )
     )
     yield
     # Shutdown: stop the checker cleanly.

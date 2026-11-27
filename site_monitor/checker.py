@@ -10,6 +10,7 @@ import httpx2
 
 from site_monitor import db
 from site_monitor.ssrf import UnsafeURLError, check_url_is_public
+from site_monitor.state import State, TargetState, next_state
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +31,23 @@ class CheckerSettings:
     interval: float
     timeout: float
     concurrency: int
+    failure_threshold: int
 
 
 def load_settings() -> CheckerSettings:
     # Invalid values raise at startup: better to fail fast than to run misconfigured.
-    return CheckerSettings(
+    settings = CheckerSettings(
         interval=float(os.environ.get("CHECK_INTERVAL_SECONDS", "30")),
         timeout=float(os.environ.get("CHECK_TIMEOUT_SECONDS", "10")),
         concurrency=int(os.environ.get("CHECK_CONCURRENCY", "10")),
+        failure_threshold=int(os.environ.get("FAILURE_THRESHOLD", "3")),
     )
+    # e.g. CHECK_CONCURRENCY=0 would make the checker wait forever on its semaphore.
+    if settings.interval <= 0 or settings.timeout <= 0:
+        raise ValueError("CHECK_INTERVAL_SECONDS and CHECK_TIMEOUT_SECONDS must be > 0")
+    if settings.concurrency < 1 or settings.failure_threshold < 1:
+        raise ValueError("CHECK_CONCURRENCY and FAILURE_THRESHOLD must be >= 1")
+    return settings
 
 
 async def check_target(
@@ -92,10 +101,36 @@ def _load_targets() -> list[dict]:
         conn.close()
 
 
-async def checker_loop(
-    settings: CheckerSettings, results: dict[int, CheckResult]
+def update_states(
+    states: dict[int, TargetState], checked: list[CheckResult], threshold: int
 ) -> None:
-    """Check every target, store the latest results, sleep, repeat. Runs until cancelled."""
+    """Apply one round of results to the states, in place, and log state changes."""
+    new_states = {}
+    for r in checked:
+        previous = states.get(r.target_id, TargetState())
+        new, changed = next_state(previous, r.up, threshold)
+        new_states[r.target_id] = new
+        if changed and new.state == State.DOWN:
+            logger.warning(
+                "Target %d %s is DOWN after %d consecutive failures (last: %s)",
+                r.target_id,
+                r.url,
+                new.consecutive_failures,
+                r.error or f"HTTP {r.status_code}",
+            )
+        elif changed:
+            logger.info("Target %d %s RECOVERED (UP)", r.target_id, r.url)
+    # Replace everything, so deleted targets disappear from the states.
+    states.clear()
+    states.update(new_states)
+
+
+async def checker_loop(
+    settings: CheckerSettings,
+    results: dict[int, CheckResult],
+    states: dict[int, TargetState],
+) -> None:
+    """Check every target, store results and states, sleep, repeat. Runs until cancelled."""
     timeout = httpx2.Timeout(settings.timeout)
     async with httpx2.AsyncClient(timeout=timeout, follow_redirects=False) as client:
         while True:
@@ -105,8 +140,9 @@ async def checker_loop(
                 # Replace everything, so deleted targets disappear from the results.
                 results.clear()
                 results.update({r.target_id: r for r in checked})
-                down = sum(not r.up for r in checked)
-                logger.info("Checked %d targets, %d down", len(checked), down)
+                update_states(states, checked, settings.failure_threshold)
+                down = sum(s.state == State.DOWN for s in states.values())
+                logger.info("Checked %d targets, %d DOWN", len(checked), down)
             except Exception:
                 # One failed round (e.g. database locked) must not kill the loop forever.
                 # Cancellation is not an Exception, so shutdown still works.

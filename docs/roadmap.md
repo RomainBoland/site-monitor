@@ -9,7 +9,7 @@ Each step ends with one commit and, when a choice was made, a decision record in
 - [x] 5. Targets endpoints (add/list/delete) with input validation
 - [x] 6. SSRF protection (refuse localhost/private networks) with dedicated tests; explain why the risk exists
 - [x] 7. The checker — *decision: httpx vs requests vs aiohttp; sync vs async; how to schedule periodic checks*
-- [ ] 8. Consecutive-failure logic and state-change detection
+- [x] 8. Consecutive-failure logic and state-change detection
 - [ ] 9. Prometheus metrics and `/metrics` — *decision: prometheus_client vs OpenTelemetry; which metric types*
 - [ ] 10. Dockerfile (multi-stage, non-root, healthcheck) + docker-compose.yml — *decision: slim vs alpine vs distroless base image*
 - [ ] 11. CI with GitHub Actions: lint, tests, docker build
