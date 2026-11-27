@@ -47,7 +47,8 @@ How to reference third-party actions:
   - the smoke-test script reports `healthy` for the real image, and exits 1 with the startup error for a broken one (`CHECK_CONCURRENCY=0`).
 - **Not verified locally:**
   - the workflow syntax: running actionlint was not permitted in the session where this was written;
-  - the GitHub-hosted runner itself. The first real run on GitHub is the final check.
+  - the GitHub-hosted runner itself.
+- **Verified on GitHub (2026-11-27):** the first run (commit `c023c51`) succeeded. Both jobs passed, 87 tests ran, the container was healthy on the 4th attempt, and there were no warnings or deprecation notices. This also confirmed the workflow syntax.
 - Tests never use the network (fake DNS, `MockTransport`), so CI is not flaky because of external sites.
 - Pinned SHAs do not update themselves. Dependabot (or Renovate) for `github-actions` would open update PRs; not set up yet.
 - A failing smoke test waits the full 60 s before failing; acceptable for now.
