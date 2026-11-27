@@ -6,10 +6,11 @@ from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from prometheus_client import CONTENT_TYPE_LATEST
 from pydantic import BaseModel, HttpUrl, field_validator
 
-from site_monitor import checker, db
+from site_monitor import checker, db, metrics
 from site_monitor.ssrf import UnsafeURLError, check_url_is_public
 
 # Uvicorn only configures its own loggers; without this, our INFO logs are dropped.
@@ -28,14 +29,10 @@ async def lifespan(app: FastAPI):
     db.init_db(conn)
     conn.close()
 
-    # Latest check result and UP/DOWN state per target id, filled by the checker.
-    app.state.results = {}
-    app.state.states = {}
-    task = asyncio.create_task(
-        checker.checker_loop(
-            checker.load_settings(), app.state.results, app.state.states
-        )
-    )
+    # Results, states and counters, filled by the checker and read by /metrics.
+    data = checker.MonitorData()
+    app.state.registry = metrics.make_registry(data)
+    task = asyncio.create_task(checker.checker_loop(checker.load_settings(), data))
     yield
     # Shutdown: stop the checker cleanly.
     task.cancel()
@@ -83,6 +80,14 @@ def health() -> dict[str, str]:
     # Liveness only: answers "is the process up?". It must stay cheap and must not
     # depend on the monitored sites, or one slow site would make the container unhealthy.
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+async def get_metrics(request: Request) -> Response:
+    # async on purpose: it runs on the event loop, like the checker, so it can never
+    # read the data while the checker is in the middle of updating it.
+    body = metrics.render(request.app.state.registry)
+    return Response(content=body, media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/targets", status_code=201)

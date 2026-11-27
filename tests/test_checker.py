@@ -150,7 +150,9 @@ def test_loop_survives_a_failed_round(monkeypatch):
     )
 
     async def main():
-        task = asyncio.create_task(checker.checker_loop(settings, {}, {}))
+        task = asyncio.create_task(
+            checker.checker_loop(settings, checker.MonitorData())
+        )
         while calls < 3:
             await asyncio.sleep(0.01)
         task.cancel()

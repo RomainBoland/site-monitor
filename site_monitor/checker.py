@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx2
 
@@ -24,6 +24,20 @@ class CheckResult:
     response_time: float | None  # seconds until the response headers arrived
     error: str | None
     checked_at: float  # Unix timestamp
+
+
+@dataclass
+class MonitorData:
+    """Everything the checker produces, read by /metrics. Lives in memory only."""
+
+    results: dict[int, CheckResult] = field(default_factory=dict)  # latest per target
+    states: dict[int, TargetState] = field(default_factory=dict)  # per target
+    checks_total: dict[str, int] = field(
+        default_factory=lambda: {"success": 0, "failure": 0}
+    )
+    state_changes_total: dict[str, int] = field(
+        default_factory=lambda: {"up": 0, "down": 0}
+    )
 
 
 @dataclass
@@ -103,13 +117,19 @@ def _load_targets() -> list[dict]:
 
 def update_states(
     states: dict[int, TargetState], checked: list[CheckResult], threshold: int
-) -> None:
-    """Apply one round of results to the states, in place, and log state changes."""
+) -> list[State]:
+    """Apply one round of results to the states, in place, and log state changes.
+
+    Returns the new state of every target that changed (UP or DOWN).
+    """
     new_states = {}
+    changes = []
     for r in checked:
         previous = states.get(r.target_id, TargetState())
         new, changed = next_state(previous, r.up, threshold)
         new_states[r.target_id] = new
+        if changed:
+            changes.append(new.state)
         if changed and new.state == State.DOWN:
             logger.warning(
                 "Target %d %s is DOWN after %d consecutive failures (last: %s)",
@@ -123,25 +143,30 @@ def update_states(
     # Replace everything, so deleted targets disappear from the states.
     states.clear()
     states.update(new_states)
+    return changes
 
 
-async def checker_loop(
-    settings: CheckerSettings,
-    results: dict[int, CheckResult],
-    states: dict[int, TargetState],
-) -> None:
-    """Check every target, store results and states, sleep, repeat. Runs until cancelled."""
+def record_round(data: MonitorData, checked: list[CheckResult], threshold: int) -> None:
+    """Store one round of results in `data`: latest results, states and counters."""
+    # Replace everything, so deleted targets disappear from the results.
+    data.results.clear()
+    data.results.update({r.target_id: r for r in checked})
+    for r in checked:
+        data.checks_total["success" if r.up else "failure"] += 1
+    for new_state in update_states(data.states, checked, threshold):
+        data.state_changes_total[new_state.value] += 1
+
+
+async def checker_loop(settings: CheckerSettings, data: MonitorData) -> None:
+    """Check every target, record the results, sleep, repeat. Runs until cancelled."""
     timeout = httpx2.Timeout(settings.timeout)
     async with httpx2.AsyncClient(timeout=timeout, follow_redirects=False) as client:
         while True:
             try:
                 targets = await asyncio.to_thread(_load_targets)
                 checked = await run_checks(client, targets, settings.concurrency)
-                # Replace everything, so deleted targets disappear from the results.
-                results.clear()
-                results.update({r.target_id: r for r in checked})
-                update_states(states, checked, settings.failure_threshold)
-                down = sum(s.state == State.DOWN for s in states.values())
+                record_round(data, checked, settings.failure_threshold)
+                down = sum(s.state == State.DOWN for s in data.states.values())
                 logger.info("Checked %d targets, %d DOWN", len(checked), down)
             except Exception:
                 # One failed round (e.g. database locked) must not kill the loop forever.
